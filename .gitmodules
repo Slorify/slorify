@@ -4,3 +4,6 @@
 [submodule "slora-portal"]
 	path = slora-portal
 	url = https://github.com/Slorify/slora-portal
+[submodule ".github"]
+	path = .github
+	url = https://github.com/Slorify/.github
