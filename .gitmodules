@@ -1,0 +1,6 @@
+[submodule "slora-core"]
+	path = slora-core
+	url = https://github.com/Slorify/slora-core
+[submodule "slora-portal"]
+	path = slora-portal
+	url = https://github.com/Slorify/slora-portal
