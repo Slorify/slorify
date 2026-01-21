@@ -1,0 +1,15 @@
+{
+  "name": "slorify",
+  "version": "1.0.0",
+  "description": "Slorify is a cloud application and database operator / manger made by Aislx.",
+  "license": "ISC",
+  "author": "aislxflames",
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build",
+    "start": "PORT=4000 pnpm --filter ember-backend start"
+  },
+  "dependencies": {
+    "pnpm": "^10.28.1"
+  }
+}
