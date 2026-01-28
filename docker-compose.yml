@@ -1,0 +1,16 @@
+services:
+  slorify:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: Slorify
+    volumes:
+      - .:/Slorify
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/slorify:/opt/slorify
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    command: npm run dev

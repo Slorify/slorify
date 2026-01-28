@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "pnpm -r dev",
     "build": "pnpm -r build",
-    "start": "PORT=4000 pnpm --filter slora-core start"
+    "start": "PORT=4000 pnpm --filter slora-core start",
+    "prisma:dev": "pnpm --filter slora-core prisma:migrate && pnpm --filter slora-core prisma:generate"
   },
   "dependencies": {
     "pnpm": "^10.28.1"
