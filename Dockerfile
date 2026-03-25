@@ -25,8 +25,12 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /Slorify
 
 COPY . ./
+# install pnpm
 RUN npm install -g pnpm
-RUN pnpm install --frozen-lockfile --config.confirmModulesPurge=false --shamefully-hoist
-RUN npm run build
+ENV CI=true
+RUN pnpm install --frozen-lockfile --shamefully-hoist
+RUN pnpm --filter slora-core exec prisma generate
+RUN pnpm --filter slora-core exec prisma migrate deploy
+RUN pnpm build
 
 CMD [ "npm", "run", "start" ]
