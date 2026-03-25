@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /Slorify
 
 COPY . ./
+RUN npm install -g pnpm
 RUN npm install
 RUN npm run build
 
