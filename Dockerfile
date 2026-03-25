@@ -26,7 +26,7 @@ WORKDIR /Slorify
 
 COPY . ./
 RUN npm install -g pnpm
-RUN pnpm install
+RUN pnpm install --frozen-lockfile --config.confirmModulesPurge=false --shamefully-hoist
 RUN npm run build
 
 CMD [ "npm", "run", "start" ]
