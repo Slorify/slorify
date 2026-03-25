@@ -26,7 +26,7 @@ WORKDIR /Slorify
 
 COPY . ./
 RUN npm install -g pnpm
-RUN npm install
+RUN pnpm install
 RUN npm run build
 
 CMD [ "npm", "run", "start" ]
