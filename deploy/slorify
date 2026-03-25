@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="${SLORIFY_APP_ROOT:-/opt/slorify/app}"
+CORE_DIR="$APP_ROOT/slora-core"
+PORTAL_DIR="$APP_ROOT/slora-portal"
+CORE_SERVICE="${SLORIFY_CORE_SERVICE:-slorify-core.service}"
+NGINX_SERVICE="${SLORIFY_NGINX_SERVICE:-nginx.service}"
+
+usage() {
+  cat <<USAGE
+slorify - production manager CLI
+
+Usage:
+  slorify status
+  slorify start
+  slorify stop
+  slorify restart
+  slorify logs [lines]
+  slorify build
+  slorify migrate
+  slorify update [git_ref]
+  slorify doctor
+
+Environment overrides:
+  SLORIFY_APP_ROOT, SLORIFY_CORE_SERVICE, SLORIFY_NGINX_SERVICE
+USAGE
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Missing required command: $1" >&2
+    exit 1
+  }
+}
+
+ensure_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    echo "Run as root (or with sudo)." >&2
+    exit 1
+  fi
+}
+
+status() {
+  systemctl status "$CORE_SERVICE" --no-pager || true
+  systemctl status "$NGINX_SERVICE" --no-pager || true
+}
+
+start() {
+  ensure_root
+  systemctl start "$CORE_SERVICE"
+  systemctl start "$NGINX_SERVICE"
+  status
+}
+
+stop() {
+  ensure_root
+  systemctl stop "$CORE_SERVICE" || true
+  systemctl stop "$NGINX_SERVICE" || true
+  status
+}
+
+restart() {
+  ensure_root
+  systemctl restart "$CORE_SERVICE"
+  systemctl restart "$NGINX_SERVICE"
+  status
+}
+
+logs() {
+  local lines="${1:-200}"
+  journalctl -u "$CORE_SERVICE" -n "$lines" --no-pager
+}
+
+build() {
+  need_cmd pnpm
+  [[ -d "$APP_ROOT" ]] || { echo "App root not found: $APP_ROOT" >&2; exit 1; }
+  pushd "$APP_ROOT" >/dev/null
+  pnpm install --frozen-lockfile
+  pnpm -r build
+  popd >/dev/null
+  echo "Build complete."
+}
+
+migrate() {
+  need_cmd pnpm
+  [[ -d "$CORE_DIR" ]] || { echo "Core dir not found: $CORE_DIR" >&2; exit 1; }
+  pushd "$CORE_DIR" >/dev/null
+  pnpm exec prisma migrate deploy
+  pnpm exec prisma generate
+  popd >/dev/null
+  echo "Migrations applied."
+}
+
+update() {
+  need_cmd git
+  local ref="${1:-}"
+  [[ -d "$APP_ROOT/.git" ]] || { echo "Not a git repo: $APP_ROOT" >&2; exit 1; }
+  pushd "$APP_ROOT" >/dev/null
+  git fetch --all --tags
+  if [[ -n "$ref" ]]; then
+    git checkout "$ref"
+  fi
+  git pull --ff-only
+  git submodule update --init --recursive
+  popd >/dev/null
+
+  build
+  migrate
+  restart
+}
+
+doctor() {
+  echo "SLORIFY_APP_ROOT=$APP_ROOT"
+  echo "Core dir exists: $([[ -d "$CORE_DIR" ]] && echo yes || echo no)"
+  echo "Portal dir exists: $([[ -d "$PORTAL_DIR" ]] && echo yes || echo no)"
+  echo "Node: $(node -v 2>/dev/null || echo missing)"
+  echo "PNPM: $(pnpm -v 2>/dev/null || echo missing)"
+  echo "Git: $(git --version 2>/dev/null || echo missing)"
+  echo "Nginx: $(nginx -v 2>&1 || echo missing)"
+  echo "Core service enabled: $(systemctl is-enabled "$CORE_SERVICE" 2>/dev/null || echo no)"
+  echo "Core service active: $(systemctl is-active "$CORE_SERVICE" 2>/dev/null || echo no)"
+}
+
+main() {
+  local cmd="${1:-help}"
+  shift || true
+
+  case "$cmd" in
+    status) status "$@" ;;
+    start) start "$@" ;;
+    stop) stop "$@" ;;
+    restart) restart "$@" ;;
+    logs) logs "$@" ;;
+    build) build "$@" ;;
+    migrate) migrate "$@" ;;
+    update) update "$@" ;;
+    doctor) doctor "$@" ;;
+    help|-h|--help) usage ;;
+    *)
+      echo "Unknown command: $cmd" >&2
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

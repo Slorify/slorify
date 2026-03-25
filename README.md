@@ -26,6 +26,42 @@ Slorify provides a unified platform for managing cloud applications and database
 - **slora-core** - Core engine and orchestration logic
 - **slora-portal** - Web-based management interface
 
+## Production Installer and CLI
+
+This repository now includes production automation under `deploy/`:
+
+- `deploy/install-production.sh`
+- `deploy/slorify`
+- `deploy/systemd/slorify-core.service`
+- `deploy/nginx/slorify.conf`
+
+### Install whole panel (build + migrate + services)
+
+Run from the repo root on an Ubuntu/Debian server:
+
+```bash
+sudo bash deploy/install-production.sh
+```
+
+What it does:
+
+- Installs system dependencies (Node.js, pnpm, nginx, PostgreSQL)
+- Copies project to `/opt/slorify/app`
+- Builds `slora-core` and `slora-portal`
+- Applies Prisma migrations
+- Installs and starts `slorify-core` systemd service
+- Installs nginx config to serve portal + proxy API/websocket
+- Installs `slorify` CLI to `/usr/local/bin/slorify`
+
+### Manage production
+
+```bash
+sudo slorify status
+sudo slorify logs 200
+sudo slorify restart
+sudo slorify update
+```
+
 ## License
 
 ISC

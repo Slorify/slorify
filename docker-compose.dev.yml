@@ -17,6 +17,9 @@ services:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DATABSE_URL=postgres://slora:slorapass@postgres-db:5432/sloraDB
     command:  npm run dev
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
 
   postgrace-db:
     image: postgres:14.20-trixie
