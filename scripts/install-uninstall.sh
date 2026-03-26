@@ -43,7 +43,7 @@ run_install() {
   git -C "$TMP_DIR/repo" submodule update --init --recursive
 
   log "Running production installer"
-  bash "$TMP_DIR/repo/deploy/install-production.sh"
+  REPO_SRC="$TMP_DIR/repo" bash "$TMP_DIR/repo/deploy/install-production.sh"
 
   log "Done. Slorify is installed for production on port 4000."
 }

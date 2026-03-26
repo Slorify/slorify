@@ -3,7 +3,9 @@ set -euo pipefail
 
 APP_BASE="${APP_BASE:-/opt/slorify}"
 APP_DIR="${APP_DIR:-$APP_BASE/app}"
-REPO_SRC="${REPO_SRC:-$(pwd)}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_REPO_SRC="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_SRC="${REPO_SRC:-$DEFAULT_REPO_SRC}"
 CORE_PORT="${CORE_PORT:-4000}"
 DB_NAME="${DB_NAME:-sloraDB}"
 DB_USER="${DB_USER:-slora}"
