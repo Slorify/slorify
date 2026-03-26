@@ -1,42 +1,59 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "👉 Installing prerequisites..."
+REPO_URL="${REPO_URL:-https://github.com/Slorify/slorify.git}"
+REPO_REF="${REPO_REF:-slora-v1}"
+TMP_DIR=""
 
-# Install Docker if not installed
-if ! command -v docker &> /dev/null; then
-  echo "🔹 Docker not found — installing..."
-  curl -fsSL https://get.docker.com | sh
-fi
+log() { printf "[bootstrap] %s\n" "$*"; }
+err() { printf "[bootstrap][error] %s\n" "$*" >&2; }
 
-# Install Docker Compose plugin if not installed
-if ! docker compose version &> /dev/null; then
-  echo "🔹 Docker Compose plugin not found — installing..."
-  sudo apt update
-  sudo apt install -y docker-compose-plugin
-fi
+cleanup() {
+  if [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]]; then
+    rm -rf "$TMP_DIR"
+  fi
+}
+trap cleanup EXIT
 
-# Add current user to docker group (so you don’t need sudo each time)
-sudo usermod -aG docker $USER
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    err "Missing required command: $1"
+    exit 1
+  }
+}
 
-echo "👉 Cloning repository..."
-if [ -d slorify ]; then
-  echo "⚠️ slorify directory already exists, skipping clone"
-else
-  git clone https://github.com/Slorify/slorify.git
-fi
+ensure_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    if command -v sudo >/dev/null 2>&1; then
+      log "Re-running with sudo"
+      exec sudo -E bash "$0" "$@"
+    fi
+    err "Please run as root (or install sudo)."
+    exit 1
+  fi
+}
 
-cd slorify
+run_install() {
+  TMP_DIR="$(mktemp -d /tmp/slorify-install-XXXXXX)"
+  log "Cloning $REPO_URL#$REPO_REF into $TMP_DIR"
+  git clone --branch "$REPO_REF" --single-branch "$REPO_URL" "$TMP_DIR/repo"
 
-echo "👉 Setting up environment variables"
-# Create .env file if not exists
-cat <<EOF > .env
-NODE_ENV=production
-DATABASE_URL=postgres://slora:slorapass@db:5432/sloraDB
-EOF
+  log "Initializing submodules"
+  git -C "$TMP_DIR/repo" submodule sync --recursive
+  git -C "$TMP_DIR/repo" submodule update --init --recursive
 
-echo "👉 Running all containers and migrations..."
-docker compose up -d
+  log "Running production installer"
+  bash "$TMP_DIR/repo/deploy/install-production.sh"
 
-echo "✅ Slorify installed and running!"
-echo "🌐 Visit http://localhost:4000"
+  log "Done. Slorify is installed for production on port 4000."
+}
+
+main() {
+  ensure_root "$@"
+  need_cmd git
+  need_cmd mktemp
+  need_cmd bash
+  run_install
+}
+
+main "$@"

@@ -42,6 +42,12 @@ Run from the repo root on an Ubuntu/Debian server:
 sudo bash deploy/install-production.sh
 ```
 
+Or run direct bootstrap from anywhere (auto-clones to `/tmp` and runs production install):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Slorify/slorify/refs/heads/slora-v1/scripts/install-uninstall.sh | sudo bash
+```
+
 Optional installer overrides (example):
 
 ```bash
