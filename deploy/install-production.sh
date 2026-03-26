@@ -12,7 +12,6 @@ DB_USER="${DB_USER:-slora}"
 DB_PASS="${DB_PASS:-slorapass}"
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-5432}"
-USE_NGINX="${USE_NGINX:-false}"
 
 log() { printf "[install] %s\n" "$*"; }
 err() { printf "[install][error] %s\n" "$*" >&2; }
@@ -156,19 +155,12 @@ install_systemd() {
   systemctl enable --now slorify-core.service
 }
 
-install_nginx() {
-  log "Installing nginx config"
-  install -m 0644 "$APP_DIR/deploy/nginx/slorify.conf" /etc/nginx/sites-available/slorify.conf
-
-  sed -i "s|/opt/slorify/app|$APP_DIR|g" /etc/nginx/sites-available/slorify.conf
-  sed -i "s|127.0.0.1:4000|127.0.0.1:$CORE_PORT|g" /etc/nginx/sites-available/slorify.conf
-
-  ln -sf /etc/nginx/sites-available/slorify.conf /etc/nginx/sites-enabled/slorify.conf
-  rm -f /etc/nginx/sites-enabled/default
-
-  nginx -t
-  systemctl enable --now nginx
-  systemctl restart nginx
+disable_nginx_if_present() {
+  if systemctl list-unit-files | grep -q '^nginx\.service'; then
+    log "Disabling nginx service to keep production on port $CORE_PORT only"
+    systemctl stop nginx || true
+    systemctl disable nginx || true
+  fi
 }
 
 install_cli() {
@@ -181,18 +173,13 @@ post_install_summary() {
   echo ""
   echo "Services:"
   systemctl --no-pager --full status slorify-core.service | sed -n '1,8p' || true
-  if [[ "$USE_NGINX" == "true" ]]; then
-    systemctl --no-pager --full status nginx | sed -n '1,8p' || true
-  fi
   echo ""
   echo "CLI usage:"
   echo "  slorify status"
   echo "  slorify logs 200"
   echo "  slorify restart"
-  if [[ "$USE_NGINX" == "false" ]]; then
-    echo ""
-    echo "Core API is served directly on port $CORE_PORT."
-  fi
+  echo ""
+  echo "Core API is served directly on port $CORE_PORT."
 }
 
 main() {
@@ -208,9 +195,7 @@ main() {
   setup_env
   build_and_migrate
   install_systemd
-  if [[ "$USE_NGINX" == "true" ]]; then
-    install_nginx
-  fi
+  disable_nginx_if_present
   install_cli
   post_install_summary
 }

@@ -33,7 +33,6 @@ This repository now includes production automation under `deploy/`:
 - `deploy/install-production.sh`
 - `deploy/slorify`
 - `deploy/systemd/slorify-core.service`
-- `deploy/nginx/slorify.conf`
 
 ### Install whole panel (build + migrate + services)
 
@@ -49,17 +48,14 @@ Optional installer overrides (example):
 sudo APP_URL="http://your-vps-ip" CORE_PORT=4000 DB_PASS="strong-pass" bash deploy/install-production.sh
 ```
 
-Nginx is disabled by default. Core serves directly on port `4000`.
-If you still want nginx reverse proxy, set `USE_NGINX=true`.
-
 What it does:
 
-- Installs system dependencies (Node.js, pnpm, nginx, PostgreSQL)
+- Installs system dependencies (Node.js, pnpm, PostgreSQL)
 - Copies project to `/opt/slorify/app`
 - Builds `slora-core` and `slora-portal`
 - Applies Prisma migrations
 - Installs and starts `slorify-core` systemd service
-- Optionally installs nginx config only when `USE_NGINX=true`
+- Disables nginx service if present, so Slorify runs directly on port `4000`
 - Installs `slorify` CLI to `/usr/local/bin/slorify`
 - Auto-generates `/opt/slorify/app/.env` and `/opt/slorify/app/slora-core/.env`
 

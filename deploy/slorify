@@ -5,8 +5,6 @@ APP_ROOT="${SLORIFY_APP_ROOT:-/opt/slorify/app}"
 CORE_DIR="$APP_ROOT/slora-core"
 PORTAL_DIR="$APP_ROOT/slora-portal"
 CORE_SERVICE="${SLORIFY_CORE_SERVICE:-slorify-core.service}"
-NGINX_SERVICE="${SLORIFY_NGINX_SERVICE:-nginx.service}"
-ENABLE_NGINX="${SLORIFY_ENABLE_NGINX:-false}"
 
 usage() {
   cat <<USAGE
@@ -24,7 +22,7 @@ Usage:
   slorify doctor
 
 Environment overrides:
-  SLORIFY_APP_ROOT, SLORIFY_CORE_SERVICE, SLORIFY_NGINX_SERVICE
+  SLORIFY_APP_ROOT, SLORIFY_CORE_SERVICE
 USAGE
 }
 
@@ -44,35 +42,23 @@ ensure_root() {
 
 status() {
   systemctl status "$CORE_SERVICE" --no-pager || true
-  if [[ "$ENABLE_NGINX" == "true" ]]; then
-    systemctl status "$NGINX_SERVICE" --no-pager || true
-  fi
 }
 
 start() {
   ensure_root
   systemctl start "$CORE_SERVICE"
-  if [[ "$ENABLE_NGINX" == "true" ]]; then
-    systemctl start "$NGINX_SERVICE"
-  fi
   status
 }
 
 stop() {
   ensure_root
   systemctl stop "$CORE_SERVICE" || true
-  if [[ "$ENABLE_NGINX" == "true" ]]; then
-    systemctl stop "$NGINX_SERVICE" || true
-  fi
   status
 }
 
 restart() {
   ensure_root
   systemctl restart "$CORE_SERVICE"
-  if [[ "$ENABLE_NGINX" == "true" ]]; then
-    systemctl restart "$NGINX_SERVICE"
-  fi
   status
 }
 
@@ -131,7 +117,6 @@ doctor() {
   echo "Node: $(node -v 2>/dev/null || echo missing)"
   echo "PNPM: $(pnpm -v 2>/dev/null || echo missing)"
   echo "Git: $(git --version 2>/dev/null || echo missing)"
-  echo "Nginx: $(nginx -v 2>&1 || echo missing)"
   echo "Core service enabled: $(systemctl is-enabled "$CORE_SERVICE" 2>/dev/null || echo no)"
   echo "Core service active: $(systemctl is-active "$CORE_SERVICE" 2>/dev/null || echo no)"
 }
