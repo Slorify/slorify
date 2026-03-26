@@ -12,11 +12,9 @@ services:
       - "5173:5173"
       - "4000:4000"
       - "5432:5432"
-    environment:
-      - NODE_ENV=development
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - DATABSE_URL=postgres://slora:slorapass@postgres-db:5432/sloraDB
-    command:  npm run dev
+    env_file:
+      - .env
+    command: npm run dev
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -29,7 +27,6 @@ services:
       POSTGRES_USER: slora
       POSTGRES_PASSWORD: slorapass
       POSTGRES_DB: sloraDB
-
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
