@@ -39,4 +39,5 @@ RUN pnpm -r build \
  && test -d slora-core/dist \
  && test -d slora-portal/dist
 
-CMD ["pnpm", "--filter", "slora-core", "start"]
+EXPOSE 4000
+CMD ["bash", "-lc", "cd slora-core && pnpm exec prisma migrate deploy && pnpm exec prisma generate && cd .. && pnpm --filter slora-core start"]

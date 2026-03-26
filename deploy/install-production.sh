@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_USER="${APP_USER:-slorify}"
-APP_GROUP="${APP_GROUP:-slorify}"
 APP_BASE="${APP_BASE:-/opt/slorify}"
 APP_DIR="${APP_DIR:-$APP_BASE/app}"
 REPO_SRC="${REPO_SRC:-$(pwd)}"
@@ -10,8 +8,16 @@ CORE_PORT="${CORE_PORT:-4000}"
 DB_NAME="${DB_NAME:-sloraDB}"
 DB_USER="${DB_USER:-slora}"
 DB_PASS="${DB_PASS:-slorapass}"
-DB_HOST="${DB_HOST:-127.0.0.1}"
+DB_HOST="${DB_HOST:-postgrace-db}"
 DB_PORT="${DB_PORT:-5432}"
+APP_DATA_ROOT="${APP_DATA_ROOT:-/opt/slorify/data}"
+SWARM_MODE="${SWARM_MODE:-true}"
+SESSION_COOKIE_SECURE="${SESSION_COOKIE_SECURE:-false}"
+NODE_ENV="${NODE_ENV:-production}"
+USE_DOMAIN="${USE_DOMAIN:-false}"
+PANEL_DOMAIN="${PANEL_DOMAIN:-}"
+DEFAULT_PANEL_DOMAIN="${DEFAULT_PANEL_DOMAIN:-hpanel.flamenodes.cloud}"
+FORCE_ENV_REGENERATE="${FORCE_ENV_REGENERATE:-false}"
 
 log() { printf "[install] %s\n" "$*"; }
 err() { printf "[install][error] %s\n" "$*" >&2; }
@@ -30,33 +36,24 @@ require_cmd() {
   }
 }
 
-install_system_packages() {
-  log "Installing system dependencies"
+install_base_packages() {
+  log "Installing base dependencies"
   apt-get update
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    curl ca-certificates gnupg git rsync postgresql postgresql-contrib
-
-  if ! command -v node >/dev/null 2>&1; then
-    log "Installing Node.js 20"
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
-  fi
-
-  corepack enable
-  corepack prepare pnpm@10.28.2 --activate
+    ca-certificates curl git rsync
 }
 
-create_app_user() {
-  if ! id -u "$APP_USER" >/dev/null 2>&1; then
-    log "Creating system user: $APP_USER"
-    useradd --system --create-home --home-dir "$APP_BASE" --shell /bin/bash "$APP_USER"
+install_docker_if_missing() {
+  if ! command -v docker >/dev/null 2>&1; then
+    log "Installing Docker"
+    curl -fsSL https://get.docker.com | sh
   fi
 
-  if ! getent group "$APP_GROUP" >/dev/null 2>&1; then
-    groupadd --system "$APP_GROUP"
+  if ! docker compose version >/dev/null 2>&1; then
+    log "Installing Docker Compose plugin"
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y docker-compose-plugin
   fi
-
-  usermod -a -G "$APP_GROUP" "$APP_USER" || true
 }
 
 sync_project() {
@@ -75,44 +72,16 @@ sync_project() {
     git -C "$APP_DIR" submodule sync --recursive
     git -C "$APP_DIR" submodule update --init --recursive
   fi
-
-  chown -R "$APP_USER:$APP_GROUP" "$APP_BASE"
-}
-
-prepare_database() {
-  log "Configuring PostgreSQL"
-  systemctl enable --now postgresql
-
-  local escaped_pass
-  escaped_pass=$(printf "%s" "$DB_PASS" | sed "s/'/''/g")
-
-  sudo -u postgres psql <<SQL
-DO
-\$\$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$DB_USER') THEN
-    CREATE ROLE "$DB_USER" LOGIN PASSWORD '$escaped_pass';
-  ELSE
-    ALTER ROLE "$DB_USER" WITH LOGIN PASSWORD '$escaped_pass';
-  END IF;
-END
-\$\$;
-SQL
-
-  sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 \
-    || sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
 }
 
 setup_env() {
-  log "Generating environment files"
-  local generator="$APP_DIR/deploy/generate-env.sh"
+  log "Generating .env files for root/slora-core/slora-portal"
   local regen_flag=()
-
-  if [[ "${FORCE_ENV_REGENERATE:-false}" == "true" ]]; then
+  if [[ "$FORCE_ENV_REGENERATE" == "true" ]]; then
     regen_flag=(--force)
   fi
 
-  sudo -u "$APP_USER" env \
+  env \
     APP_DIR="$APP_DIR" \
     CORE_PORT="$CORE_PORT" \
     DB_NAME="$DB_NAME" \
@@ -120,82 +89,66 @@ setup_env() {
     DB_PASS="$DB_PASS" \
     DB_HOST="$DB_HOST" \
     DB_PORT="$DB_PORT" \
-    APP_URL="${APP_URL:-http://localhost}" \
-    APP_DATA_ROOT="${APP_DATA_ROOT:-/opt/slorify/data}" \
-    SWARM_MODE="${SWARM_MODE:-true}" \
-    SESSION_COOKIE_SECURE="${SESSION_COOKIE_SECURE:-false}" \
-    NODE_ENV="${NODE_ENV:-production}" \
-    bash "$generator" "${regen_flag[@]}"
+    APP_DATA_ROOT="$APP_DATA_ROOT" \
+    SWARM_MODE="$SWARM_MODE" \
+    SESSION_COOKIE_SECURE="$SESSION_COOKIE_SECURE" \
+    NODE_ENV="$NODE_ENV" \
+    USE_DOMAIN="$USE_DOMAIN" \
+    PANEL_DOMAIN="$PANEL_DOMAIN" \
+    DEFAULT_PANEL_DOMAIN="$DEFAULT_PANEL_DOMAIN" \
+    bash "$APP_DIR/deploy/generate-env.sh" "${regen_flag[@]}"
 
-  chown "$APP_USER:$APP_GROUP" "$APP_DIR/.env" "$APP_DIR/slora-core/.env"
-  chmod 600 "$APP_DIR/.env" "$APP_DIR/slora-core/.env"
-}
-
-build_and_migrate() {
-  log "Installing dependencies"
-  sudo -u "$APP_USER" sh -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile"
-
-  log "Building slora-core and slora-portal"
-  sudo -u "$APP_USER" sh -lc "cd '$APP_DIR' && pnpm -r build"
-
-  log "Applying database migrations"
-  sudo -u "$APP_USER" sh -lc "cd '$APP_DIR/slora-core' && pnpm exec prisma migrate deploy && pnpm exec prisma generate"
-}
-
-install_systemd() {
-  log "Installing systemd service"
-  install -m 0644 "$APP_DIR/deploy/systemd/slorify-core.service" /etc/systemd/system/slorify-core.service
-
-  sed -i "s|/opt/slorify/app|$APP_DIR|g" /etc/systemd/system/slorify-core.service
-  sed -i "s|User=slorify|User=$APP_USER|g" /etc/systemd/system/slorify-core.service
-  sed -i "s|Group=slorify|Group=$APP_GROUP|g" /etc/systemd/system/slorify-core.service
-  sed -i "s|Environment=PORT=4000|Environment=PORT=$CORE_PORT|g" /etc/systemd/system/slorify-core.service
-
-  systemctl daemon-reload
-  systemctl enable --now slorify-core.service
+  chmod 600 "$APP_DIR/.env" "$APP_DIR/slora-core/.env" "$APP_DIR/slora-portal/.env"
 }
 
 disable_nginx_if_present() {
   if systemctl list-unit-files | grep -q '^nginx\.service'; then
-    log "Disabling nginx service to keep production on port $CORE_PORT only"
+    log "Disabling nginx so Slorify is served via Docker on port $CORE_PORT"
     systemctl stop nginx || true
     systemctl disable nginx || true
   fi
 }
 
+deploy_stack() {
+  log "Starting production stack with docker compose"
+  cd "$APP_DIR"
+  docker compose pull postgrace-db || true
+  docker compose up -d --build
+}
+
 install_cli() {
-  log "Installing slorify CLI"
-  install -m 0755 "$APP_DIR/deploy/slorify" /usr/local/bin/slorify
+  log "Installing slora CLI"
+  install -m 0755 "$APP_DIR/deploy/slora" /usr/local/bin/slora
+  install -m 0755 "$APP_DIR/deploy/slora" /usr/local/bin/slorify
 }
 
 post_install_summary() {
   log "Installation complete"
   echo ""
-  echo "Services:"
-  systemctl --no-pager --full status slorify-core.service | sed -n '1,8p' || true
+  docker compose -f "$APP_DIR/docker-compose.yml" ps || true
   echo ""
-  echo "CLI usage:"
-  echo "  slorify status"
-  echo "  slorify logs 200"
-  echo "  slorify restart"
+  echo "Commands:"
+  echo "  slora status"
+  echo "  slora logs 200"
+  echo "  slora restart"
   echo ""
-  echo "Core API is served directly on port $CORE_PORT."
+  echo "Panel/API is served on port $CORE_PORT (no nginx)."
 }
 
 main() {
   require_root
-  require_cmd sed
+  require_cmd bash
+  require_cmd curl
+  require_cmd git
   require_cmd rsync
-  require_cmd openssl
+  require_cmd sed
 
-  install_system_packages
-  create_app_user
+  install_base_packages
+  install_docker_if_missing
   sync_project
-  prepare_database
   setup_env
-  build_and_migrate
-  install_systemd
   disable_nginx_if_present
+  deploy_stack
   install_cli
   post_install_summary
 }

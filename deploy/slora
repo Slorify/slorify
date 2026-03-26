@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="${SLORA_APP_ROOT:-/opt/slorify/app}"
+COMPOSE_FILE="${SLORA_COMPOSE_FILE:-$APP_ROOT/docker-compose.yml}"
+CORE_PORT="${CORE_PORT:-4000}"
+
+usage() {
+  cat <<USAGE
+slora - Slorify docker manager
+
+Usage:
+  slora status
+  slora start
+  slora stop
+  slora restart
+  slora logs [lines]
+  slora build
+  slora update [git_ref]
+  slora doctor
+USAGE
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Missing required command: $1" >&2
+    exit 1
+  }
+}
+
+ensure_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    echo "Run as root (or with sudo)." >&2
+    exit 1
+  fi
+}
+
+compose() {
+  docker compose -f "$COMPOSE_FILE" "$@"
+}
+
+status() {
+  compose ps
+}
+
+start() {
+  ensure_root
+  compose up -d
+  status
+}
+
+stop() {
+  ensure_root
+  compose down
+}
+
+restart() {
+  ensure_root
+  compose down
+  compose up -d
+  status
+}
+
+logs() {
+  local lines="${1:-200}"
+  compose logs --tail "$lines" -f slorify
+}
+
+build() {
+  ensure_root
+  compose build --no-cache slorify
+}
+
+update() {
+  ensure_root
+  need_cmd git
+  local ref="${1:-}"
+  [[ -d "$APP_ROOT/.git" ]] || { echo "Not a git repo: $APP_ROOT" >&2; exit 1; }
+  pushd "$APP_ROOT" >/dev/null
+  git fetch --all --tags
+  if [[ -n "$ref" ]]; then
+    git checkout "$ref"
+  fi
+  git pull --ff-only
+  git submodule sync --recursive
+  git submodule update --init --recursive
+  env APP_DIR="$APP_ROOT" DB_HOST="${DB_HOST:-postgrace-db}" CORE_PORT="$CORE_PORT" bash "$APP_ROOT/deploy/generate-env.sh"
+  popd >/dev/null
+  compose up -d --build
+  status
+}
+
+doctor() {
+  echo "APP_ROOT=$APP_ROOT"
+  echo "COMPOSE_FILE=$COMPOSE_FILE"
+  echo "Docker: $(docker --version 2>/dev/null || echo missing)"
+  echo "Compose: $(docker compose version 2>/dev/null || echo missing)"
+  echo "Repo exists: $([[ -d "$APP_ROOT/.git" ]] && echo yes || echo no)"
+  echo "Core env exists: $([[ -f "$APP_ROOT/slora-core/.env" ]] && echo yes || echo no)"
+  echo "Portal env exists: $([[ -f "$APP_ROOT/slora-portal/.env" ]] && echo yes || echo no)"
+}
+
+main() {
+  need_cmd docker
+  local cmd="${1:-help}"
+  shift || true
+
+  case "$cmd" in
+    status) status "$@" ;;
+    start) start "$@" ;;
+    stop) stop "$@" ;;
+    restart) restart "$@" ;;
+    logs) logs "$@" ;;
+    build) build "$@" ;;
+    update) update "$@" ;;
+    doctor) doctor "$@" ;;
+    help|-h|--help) usage ;;
+    *)
+      echo "Unknown command: $cmd" >&2
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

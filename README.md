@@ -31,8 +31,8 @@ Slorify provides a unified platform for managing cloud applications and database
 This repository now includes production automation under `deploy/`:
 
 - `deploy/install-production.sh`
+- `deploy/slora`
 - `deploy/slorify`
-- `deploy/systemd/slorify-core.service`
 
 ### Install whole panel (build + migrate + services)
 
@@ -51,19 +51,20 @@ curl -fsSL https://raw.githubusercontent.com/Slorify/slorify/refs/heads/slora-v1
 Optional installer overrides (example):
 
 ```bash
-sudo APP_URL="http://your-vps-ip" CORE_PORT=4000 DB_PASS="strong-pass" bash deploy/install-production.sh
+sudo USE_DOMAIN=true PANEL_DOMAIN="hpanel.flamenodes.cloud" CORE_PORT=4000 DB_PASS="strong-pass" bash deploy/install-production.sh
 ```
 
 What it does:
 
-- Installs system dependencies (Node.js, pnpm, PostgreSQL)
+- Installs Docker + Docker Compose if missing
 - Copies project to `/opt/slorify/app`
-- Builds `slora-core` and `slora-portal`
-- Applies Prisma migrations
-- Installs and starts `slorify-core` systemd service
+- Starts `postgrace-db` and `slorify` with `docker compose up -d --build`
 - Disables nginx service if present, so Slorify runs directly on port `4000`
-- Installs `slorify` CLI to `/usr/local/bin/slorify`
-- Auto-generates `/opt/slorify/app/.env` and `/opt/slorify/app/slora-core/.env`
+- Installs `slora` CLI to `/usr/local/bin/slora` (and `slorify` alias)
+- Auto-generates:
+  - `/opt/slorify/app/.env`
+  - `/opt/slorify/app/slora-core/.env`
+  - `/opt/slorify/app/slora-portal/.env`
 
 ### Auto-generate `.env` files manually
 
@@ -79,18 +80,23 @@ Force regenerate:
 bash deploy/generate-env.sh --force
 ```
 
+`VITE_SOCKET_URL` behavior:
+- If `USE_DOMAIN=true`, it uses `https://$PANEL_DOMAIN`
+  - If `PANEL_DOMAIN` is not provided, default is `https://hpanel.flamenodes.cloud`
+- If no domain is configured, it auto-detects VPS public IP and uses `http://<public-ip>:4000`
+
 ### Manage production
 
 ```bash
-sudo slorify status
-sudo slorify logs 200
-sudo slorify restart
-sudo slorify update
+sudo slora status
+sudo slora start
+sudo slora stop
+sudo slora logs 200
+sudo slora restart
+sudo slora update
 ```
 
-`slorify update` now also:
-- syncs submodules before update
-- auto-generates env files if missing
+`slora update` also syncs submodules and regenerates env files.
 
 Session cookie secure mode is forced to `false` in backend config.
 

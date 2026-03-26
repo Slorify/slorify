@@ -1,34 +1,46 @@
 services:
-  db:
+  postgrace-db:
     image: postgres:15
-    container_name: slorify-db
-    restart: always
+    container_name: slorify-postgrace-db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: slora
-      POSTGRES_PASSWORD: slorapass
-      POSTGRES_DB: sloraDB
+      POSTGRES_USER: ${DB_USER:-slora}
+      POSTGRES_PASSWORD: ${DB_PASS:-slorapass}
+      POSTGRES_DB: ${DB_NAME:-sloraDB}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-slora} -d ${DB_NAME:-sloraDB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   slorify:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: Slorify
+    container_name: slorify-panel
+    restart: unless-stopped
     depends_on:
-      - db
+      postgrace-db:
+        condition: service_healthy
+    env_file:
+      - .env
+      - ./slora-core/.env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /opt/slorify:/opt/slorify
+      - slorify_data:/opt/slorify/data
     ports:
-      - "4000:4000"
+      - "${CORE_PORT:-4000}:4000"
     environment:
-      - NODE_ENV=production
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - DATABASE_URL=postgres://slora:slorapass@db:5432/sloraDB
-    command: /bin/bash -c "./scripts/wait-for-db.sh"
+      DOCKER_HOST: unix:///var/run/docker.sock
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 4000
+      DATABASE_URL: postgres://${DB_USER:-slora}:${DB_PASS:-slorapass}@postgrace-db:5432/${DB_NAME:-sloraDB}
+    command: /bin/bash -lc "cd slora-core && pnpm exec prisma migrate deploy && pnpm exec prisma generate && cd .. && pnpm --filter slora-core start"
 
 volumes:
-  db_data:
+  postgres_data:
+  slorify_data:
