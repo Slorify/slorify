@@ -12,6 +12,7 @@ DB_USER="${DB_USER:-slora}"
 DB_PASS="${DB_PASS:-slorapass}"
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-5432}"
+USE_NGINX="${USE_NGINX:-false}"
 
 log() { printf "[install] %s\n" "$*"; }
 err() { printf "[install][error] %s\n" "$*" >&2; }
@@ -34,7 +35,7 @@ install_system_packages() {
   log "Installing system dependencies"
   apt-get update
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    curl ca-certificates gnupg git rsync nginx postgresql postgresql-contrib
+    curl ca-certificates gnupg git rsync postgresql postgresql-contrib
 
   if ! command -v node >/dev/null 2>&1; then
     log "Installing Node.js 20"
@@ -180,12 +181,18 @@ post_install_summary() {
   echo ""
   echo "Services:"
   systemctl --no-pager --full status slorify-core.service | sed -n '1,8p' || true
-  systemctl --no-pager --full status nginx | sed -n '1,8p' || true
+  if [[ "$USE_NGINX" == "true" ]]; then
+    systemctl --no-pager --full status nginx | sed -n '1,8p' || true
+  fi
   echo ""
   echo "CLI usage:"
   echo "  slorify status"
   echo "  slorify logs 200"
   echo "  slorify restart"
+  if [[ "$USE_NGINX" == "false" ]]; then
+    echo ""
+    echo "Core API is served directly on port $CORE_PORT."
+  fi
 }
 
 main() {
@@ -201,7 +208,9 @@ main() {
   setup_env
   build_and_migrate
   install_systemd
-  install_nginx
+  if [[ "$USE_NGINX" == "true" ]]; then
+    install_nginx
+  fi
   install_cli
   post_install_summary
 }

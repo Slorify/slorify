@@ -49,6 +49,9 @@ Optional installer overrides (example):
 sudo APP_URL="http://your-vps-ip" CORE_PORT=4000 DB_PASS="strong-pass" bash deploy/install-production.sh
 ```
 
+Nginx is disabled by default. Core serves directly on port `4000`.
+If you still want nginx reverse proxy, set `USE_NGINX=true`.
+
 What it does:
 
 - Installs system dependencies (Node.js, pnpm, nginx, PostgreSQL)
@@ -56,7 +59,7 @@ What it does:
 - Builds `slora-core` and `slora-portal`
 - Applies Prisma migrations
 - Installs and starts `slorify-core` systemd service
-- Installs nginx config to serve portal + proxy API/websocket
+- Optionally installs nginx config only when `USE_NGINX=true`
 - Installs `slorify` CLI to `/usr/local/bin/slorify`
 - Auto-generates `/opt/slorify/app/.env` and `/opt/slorify/app/slora-core/.env`
 

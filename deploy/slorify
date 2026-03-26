@@ -6,6 +6,7 @@ CORE_DIR="$APP_ROOT/slora-core"
 PORTAL_DIR="$APP_ROOT/slora-portal"
 CORE_SERVICE="${SLORIFY_CORE_SERVICE:-slorify-core.service}"
 NGINX_SERVICE="${SLORIFY_NGINX_SERVICE:-nginx.service}"
+ENABLE_NGINX="${SLORIFY_ENABLE_NGINX:-false}"
 
 usage() {
   cat <<USAGE
@@ -43,27 +44,35 @@ ensure_root() {
 
 status() {
   systemctl status "$CORE_SERVICE" --no-pager || true
-  systemctl status "$NGINX_SERVICE" --no-pager || true
+  if [[ "$ENABLE_NGINX" == "true" ]]; then
+    systemctl status "$NGINX_SERVICE" --no-pager || true
+  fi
 }
 
 start() {
   ensure_root
   systemctl start "$CORE_SERVICE"
-  systemctl start "$NGINX_SERVICE"
+  if [[ "$ENABLE_NGINX" == "true" ]]; then
+    systemctl start "$NGINX_SERVICE"
+  fi
   status
 }
 
 stop() {
   ensure_root
   systemctl stop "$CORE_SERVICE" || true
-  systemctl stop "$NGINX_SERVICE" || true
+  if [[ "$ENABLE_NGINX" == "true" ]]; then
+    systemctl stop "$NGINX_SERVICE" || true
+  fi
   status
 }
 
 restart() {
   ensure_root
   systemctl restart "$CORE_SERVICE"
-  systemctl restart "$NGINX_SERVICE"
+  if [[ "$ENABLE_NGINX" == "true" ]]; then
+    systemctl restart "$NGINX_SERVICE"
+  fi
   status
 }
 

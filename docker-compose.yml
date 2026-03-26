@@ -20,13 +20,12 @@ services:
     depends_on:
       - db
     volumes:
-      - .:/Slorify
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/slorify:/opt/slorify
     ports:
       - "4000:4000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DATABASE_URL=postgres://slora:slorapass@db:5432/sloraDB
     command: /bin/bash -c "./scripts/wait-for-db.sh"
