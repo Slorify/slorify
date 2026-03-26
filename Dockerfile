@@ -29,8 +29,8 @@ COPY . ./
 RUN npm install -g pnpm
 ENV CI=true
 RUN pnpm install --frozen-lockfile --shamefully-hoist
-RUN pnpm --filter slora-core exec prisma generate
-RUN pnpm --filter slora-core exec prisma migrate deploy
+# RUN pnpm --filter slora-core exec prisma generate
+# RUN pnpm --filter slora-core exec prisma migrate deploy
 RUN pnpm build
 
 CMD [ "npm", "run", "start" ]
