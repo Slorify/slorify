@@ -3,7 +3,6 @@ FROM node:20-bookworm
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     docker.io \
-    docker-compose-v2 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /Slorify
