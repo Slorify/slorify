@@ -60,6 +60,11 @@ install_docker_if_missing() {
 
 sync_project() {
   log "Syncing project to $APP_DIR"
+  if [[ ! -f "$REPO_SRC/docker-compose.yml" || ! -f "$REPO_SRC/deploy/generate-env.sh" ]]; then
+    err "Invalid REPO_SRC: $REPO_SRC (missing docker-compose.yml or deploy/generate-env.sh)"
+    exit 1
+  fi
+
   mkdir -p "$APP_DIR"
 
   rsync -a --delete \
@@ -143,8 +148,6 @@ main() {
   require_cmd curl
   require_cmd git
   require_cmd rsync
-  require_cmd sed
-
   install_base_packages
   install_docker_if_missing
   sync_project
