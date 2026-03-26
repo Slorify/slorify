@@ -43,6 +43,12 @@ Run from the repo root on an Ubuntu/Debian server:
 sudo bash deploy/install-production.sh
 ```
 
+Optional installer overrides (example):
+
+```bash
+sudo APP_URL="http://your-vps-ip" CORE_PORT=4000 DB_PASS="strong-pass" bash deploy/install-production.sh
+```
+
 What it does:
 
 - Installs system dependencies (Node.js, pnpm, nginx, PostgreSQL)
@@ -52,6 +58,21 @@ What it does:
 - Installs and starts `slorify-core` systemd service
 - Installs nginx config to serve portal + proxy API/websocket
 - Installs `slorify` CLI to `/usr/local/bin/slorify`
+- Auto-generates `/opt/slorify/app/.env` and `/opt/slorify/app/slora-core/.env`
+
+### Auto-generate `.env` files manually
+
+From repo root (or `/opt/slorify/app` in VPS):
+
+```bash
+bash deploy/generate-env.sh
+```
+
+Force regenerate:
+
+```bash
+bash deploy/generate-env.sh --force
+```
 
 ### Manage production
 
@@ -61,6 +82,12 @@ sudo slorify logs 200
 sudo slorify restart
 sudo slorify update
 ```
+
+`slorify update` now also:
+- syncs submodules before update
+- auto-generates env files if missing
+
+Session cookie secure mode is forced to `false` in backend config.
 
 ## License
 

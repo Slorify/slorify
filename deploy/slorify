@@ -102,8 +102,13 @@ update() {
     git checkout "$ref"
   fi
   git pull --ff-only
+  git submodule sync --recursive
   git submodule update --init --recursive
   popd >/dev/null
+
+  if [[ ! -f "$CORE_DIR/.env" || ! -f "$APP_ROOT/.env" ]]; then
+    APP_DIR="$APP_ROOT" bash "$APP_ROOT/deploy/generate-env.sh"
+  fi
 
   build
   migrate

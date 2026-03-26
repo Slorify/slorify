@@ -64,12 +64,17 @@ sync_project() {
   mkdir -p "$APP_DIR"
 
   rsync -a --delete \
-    --exclude '.git' \
     --exclude 'node_modules' \
     --exclude 'slora-core/node_modules' \
     --exclude 'slora-portal/node_modules' \
     --exclude 'slora-core/dev.db' \
     "$REPO_SRC/" "$APP_DIR/"
+
+  if [[ -d "$APP_DIR/.git" ]]; then
+    log "Syncing and updating submodules"
+    git -C "$APP_DIR" submodule sync --recursive
+    git -C "$APP_DIR" submodule update --init --recursive
+  fi
 
   chown -R "$APP_USER:$APP_GROUP" "$APP_BASE"
 }
@@ -99,22 +104,31 @@ SQL
 }
 
 setup_env() {
-  local env_file="$APP_DIR/slora-core/.env"
+  log "Generating environment files"
+  local generator="$APP_DIR/deploy/generate-env.sh"
+  local regen_flag=()
 
-  if [[ ! -f "$env_file" ]]; then
-    log "Creating $env_file"
-    cat > "$env_file" <<ENV
-PORT=$CORE_PORT
-SESSION_SECRET=$(openssl rand -hex 24)
-APP_URL=http://localhost
-APP_DATA_ROOT=/opt/slorify/data
-SWARM_MODE=true
-DATABASE_URL=postgres://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME
-ENV
+  if [[ "${FORCE_ENV_REGENERATE:-false}" == "true" ]]; then
+    regen_flag=(--force)
   fi
 
-  chown "$APP_USER:$APP_GROUP" "$env_file"
-  chmod 640 "$env_file"
+  sudo -u "$APP_USER" env \
+    APP_DIR="$APP_DIR" \
+    CORE_PORT="$CORE_PORT" \
+    DB_NAME="$DB_NAME" \
+    DB_USER="$DB_USER" \
+    DB_PASS="$DB_PASS" \
+    DB_HOST="$DB_HOST" \
+    DB_PORT="$DB_PORT" \
+    APP_URL="${APP_URL:-http://localhost}" \
+    APP_DATA_ROOT="${APP_DATA_ROOT:-/opt/slorify/data}" \
+    SWARM_MODE="${SWARM_MODE:-true}" \
+    SESSION_COOKIE_SECURE="${SESSION_COOKIE_SECURE:-false}" \
+    NODE_ENV="${NODE_ENV:-production}" \
+    bash "$generator" "${regen_flag[@]}"
+
+  chown "$APP_USER:$APP_GROUP" "$APP_DIR/.env" "$APP_DIR/slora-core/.env"
+  chmod 600 "$APP_DIR/.env" "$APP_DIR/slora-core/.env"
 }
 
 build_and_migrate() {
